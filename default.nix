@@ -4,6 +4,11 @@ with pkgs;
 with lib;
 
 let
+  fake-cargo-checksum = runCommand "fake-cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
+    install -D ${./fake-cargo-checksum.py} $out/bin/fake-cargo-checksum
+    patchShebangs $out
+  '';
+
   tomlToJSON = path: runCommand "toml.json" {} ''
     ${remarshal}/bin/toml2json < ${path} > $out
   '';
@@ -23,9 +28,11 @@ let
       rev = last urlAndRevision;
     };
 
-  mkPrefix = prefix: path: runCommand prefix {} ''
+  mkCrate = hash: prefix: path: runCommand prefix {} ''
     mkdir $out
-    ln -s ${path} $out/${prefix}
+    cp -rs --no-preserve=mode ${path} $out/${prefix}
+    cd $out/${prefix}
+    ${fake-cargo-checksum}/bin/fake-cargo-checksum ${hash} > .cargo-checksum.json
   '';
 
   unpack = path: runCommand "source" {} ''
@@ -52,13 +59,13 @@ let
 
       prefix = name + optionalString (!isNewestVersion version (attrNames packages."${name}")) "-${version}";
     in
-    mkPrefix prefix source;
+    mkCrate hash prefix source;
 in
 
 rec {
   cargoToNix = path:
     let
-     lock = importTOML path;
+     lock = importTOML "${path}/Cargo.lock";
 
      packages = mapAttrs
        (const (groupBy (getAttr "version")))
