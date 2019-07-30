@@ -1,14 +1,8 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ lib, fetchurl, runCommand, python3, remarshal }:
 
-with pkgs;
 with lib;
 
 let
-  fake-cargo-checksum = runCommand "fake-cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
-    install -D ${./fake-cargo-checksum.py} $out/bin/fake-cargo-checksum
-    patchShebangs $out
-  '';
-
   tomlToJSON = path: runCommand "toml.json" {} ''
     ${remarshal}/bin/toml2json < ${path} > $out
   '';
@@ -28,12 +22,19 @@ let
       rev = last urlAndRevision;
     };
 
+  fake-cargo-checksum = runCommand "fake-cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
+    install -D ${./fake-cargo-checksum.py} $out/bin/fake-cargo-checksum
+    patchShebangs $out
+  '';
+
   mkCrate = hash: prefix: path: runCommand prefix {} ''
     mkdir $out
     cp -rs --no-preserve=mode ${path} $out/${prefix}
     cd $out/${prefix}
+
     rm -f Cargo.toml.orig
     find . -name .\* ! -name . -exec rm -rf -- {} +
+
     ${fake-cargo-checksum}/bin/fake-cargo-checksum ${hash}
   '';
 
@@ -64,7 +65,7 @@ let
     mkCrate hash prefix source;
 in
 
-rec {
+{
   cargoToNix = path:
     let
      lock = importTOML "${path}/Cargo.lock";
