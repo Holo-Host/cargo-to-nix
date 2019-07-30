@@ -32,7 +32,9 @@ let
     mkdir $out
     cp -rs --no-preserve=mode ${path} $out/${prefix}
     cd $out/${prefix}
-    ${fake-cargo-checksum}/bin/fake-cargo-checksum ${hash} > .cargo-checksum.json
+    rm -f Cargo.toml.orig
+    find . -name .\* ! -name . -exec rm -rf -- {} +
+    ${fake-cargo-checksum}/bin/fake-cargo-checksum ${hash}
   '';
 
   unpack = path: runCommand "source" {} ''
@@ -70,9 +72,14 @@ rec {
      packages = mapAttrs
        (const (groupBy (getAttr "version")))
        (groupBy (getAttr "name") lock.package);
+
+     crates = mapAttrsToList (metadataToCrate packages) lock.metadata;
    in
-   buildEnv {
-     name = "vendor";
-     paths = mapAttrsToList (metadataToCrate packages) lock.metadata;
-   };
+   runCommand "vendor" {} ''
+     mkdir $out
+
+     for f in ${concatStringsSep " " crates}; do
+       cp -rs $f/* $out
+     done
+   '';
 }

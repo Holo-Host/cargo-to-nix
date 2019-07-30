@@ -22,5 +22,6 @@ for root, subdirs, files in os.walk('.'):
         data['files'][path] = hash.hexdigest()
 
 data['package'] = sys.argv[1]
-print(json.dumps(data))
 
+with open('.cargo-checksum.json', 'w') as f:
+    f.write(json.dumps(data, separators=(',', ':'), sort_keys=True))
