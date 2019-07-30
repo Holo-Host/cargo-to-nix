@@ -79,7 +79,7 @@ rec {
      mkdir $out
 
      for f in ${concatStringsSep " " crates}; do
-       cp -rs $f/* $out
+       cp -r $f/* $out
      done
    '';
 }
