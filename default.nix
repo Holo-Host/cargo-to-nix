@@ -71,7 +71,7 @@ in
      lock = importTOML "${path}/Cargo.lock";
 
      packages = mapAttrs
-       (const (groupBy (getAttr "version")))
+       (_: package: mapAttrs (const head) (groupBy (getAttr "version") package))
        (groupBy (getAttr "name") lock.package);
 
      crates = mapAttrsToList (metadataToCrate packages) lock.metadata;
