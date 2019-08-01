@@ -35,7 +35,7 @@ let
     rm -f Cargo.toml.orig
     find . -name .\* ! -name . -exec rm -rf -- {} +
 
-    ${fake-cargo-checksum}/bin/fake-cargo-checksum ${hash}
+    ${fake-cargo-checksum}/bin/fake-cargo-checksum '${hash}'
   '';
 
   unpack = path: runCommand "source" {} ''
