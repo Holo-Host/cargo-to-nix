@@ -22,8 +22,8 @@ let
       rev = last urlAndRevision;
     };
 
-  fake-cargo-checksum = runCommand "fake-cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
-    install -D ${./fake-cargo-checksum.py} $out/bin/fake-cargo-checksum
+  cargo-checksum = runCommand "cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
+    install -D ${./cargo-checksum.py} $out/bin/cargo-checksum
     patchShebangs $out
   '';
 
@@ -35,7 +35,7 @@ let
     rm -f Cargo.toml.orig
     find . -name .\* ! -name . -exec rm -rf -- {} +
 
-    ${fake-cargo-checksum}/bin/fake-cargo-checksum '${hash}'
+    ${cargo-checksum}/bin/cargo-checksum '${hash}'
   '';
 
   unpack = path: runCommand "source" {} ''
