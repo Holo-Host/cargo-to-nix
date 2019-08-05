@@ -21,7 +21,12 @@ for root, subdirs, files in os.walk('.'):
 
         data['files'][path] = hash.hexdigest()
 
-data['package'] = sys.argv[1]
+package_hash = sys.argv[1]
+
+if package_hash == '<none>':
+    data['package'] = None
+else:
+    data['package'] = package_hash
 
 with open('.cargo-checksum.json', 'w') as f:
     f.write(json.dumps(data, separators=(',', ':'), sort_keys=True))

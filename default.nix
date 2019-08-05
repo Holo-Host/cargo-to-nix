@@ -9,18 +9,34 @@ let
 
   importTOML = path: importJSON (tomlToJSON path);
 
-  parseGitURL = url:
+  resolveSubPackage = name: source:
+    let
+      cargo = importTOML "${source}/Cargo.toml";
+
+      subPackageName = path:
+        (importTOML "${source}/${path}/Cargo.toml").package.name;
+
+      subPackageMatch =
+        head (filter (path: subPackageName path == name) cargo.workspace.members);
+    in
+    if cargo ? "workspace"
+    then "${source}/${subPackageMatch}"
+    else source;
+
+  fetchGitCrate = name: url:
     let
       urlNormalized = replaceStrings [ "git+https://" ] [ "https://" ] url;
       urlAndRevision = splitString "#" urlNormalized;
       urlAndQuery = splitString "?" (head urlAndRevision);
       queryParams = splitString "=" (last urlAndQuery);
+
+      source = fetchGit {
+        url = head urlAndQuery;
+        ref = last queryParams;
+        rev = last urlAndRevision;
+      };
     in
-    fetchGit {
-      url = head urlAndQuery;
-      ref = last queryParams;
-      rev = last urlAndRevision;
-    };
+    resolveSubPackage name source;
 
   cargo-checksum = runCommand "cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
     install -D ${./cargo-checksum.py} $out/bin/cargo-checksum
@@ -53,7 +69,7 @@ let
       version = elemAt splitMeta 2;
 
       source = if hash == "<none>"
-        then parseGitURL packages."${name}"."${version}".source
+        then fetchGitCrate name packages."${name}"."${version}".source
         else unpack (fetchurl {
           url = "https://crates.io/api/v1/crates/${name}/${version}/download";
           name = "${name}-${version}.tar.gz";
