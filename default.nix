@@ -1,4 +1,4 @@
-{ lib, fetchurl, runCommand, python3, remarshal }:
+{ lib, fetchurl, runCommand, writeText, python3, remarshal }:
 
 with lib;
 
@@ -8,6 +8,19 @@ let
   '';
 
   importTOML = path: importJSON (tomlToJSON path);
+
+  parseGitURL = url:
+    let
+      urlNormalized = replaceStrings [ "git+https://" ] [ "https://" ] url;
+      urlAndRevision = splitString "#" urlNormalized;
+      urlAndQuery = splitString "?" (head urlAndRevision);
+      queryParams = splitString "=" (last urlAndQuery);
+    in
+    {
+      url = head urlAndQuery;
+      ref = last queryParams;
+      rev = last urlAndRevision;
+    };
 
   resolveSubPackage = name: source:
     let
@@ -20,21 +33,12 @@ let
         head (filter (path: subPackageName path == name) cargo.workspace.members);
     in
     if cargo ? "workspace"
-    then "${source}/${subPackageMatch}"
-    else source;
+      then "${source}/${subPackageMatch}"
+      else source;
 
   fetchGitCrate = name: url:
     let
-      urlNormalized = replaceStrings [ "git+https://" ] [ "https://" ] url;
-      urlAndRevision = splitString "#" urlNormalized;
-      urlAndQuery = splitString "?" (head urlAndRevision);
-      queryParams = splitString "=" (last urlAndQuery);
-
-      source = fetchGit {
-        url = head urlAndQuery;
-        ref = last queryParams;
-        rev = last urlAndRevision;
-      };
+      source = fetchGit (parseGitURL url);
     in
     resolveSubPackage name source;
 
@@ -62,11 +66,35 @@ let
   isNewestVersion = version: versions:
     version == last (sort versionOlder versions);
 
-  metadataToCrate = packages: meta: hash:
+  cargoConfigSnippet = gitCoord: ''
+    [source."${gitCoord.url}"]
+    "branch" = "${gitCoord.ref}"
+    "git" = "${gitCoord.url}"
+    "replace-with" = "vendored-sources"
+  '';
+
+  cargoConfig = gitCoords: writeText "cargo-config.toml" ''
+    [source."crates-io"]
+    "replace-with" = "vendored-sources"
+
+    ${concatStringsSep "\n" (map cargoConfigSnippet gitCoords)}
+
+    [source."vendored-sources"]
+    "directory" = "@vendor@"
+  '';
+
+  parseMeta = meta:
     let
-      splitMeta = splitString " " meta;
-      name = elemAt splitMeta 1;
-      version = elemAt splitMeta 2;
+      metaList = splitString " " meta;
+    in
+    {
+      name = elemAt metaList 1;
+      version = elemAt metaList 2;
+    };
+
+  fetchCrate = packages: meta: hash:
+    let
+      inherit (parseMeta meta) name version;
 
       source = if hash == "<none>"
         then fetchGitCrate name packages."${name}"."${version}".source
@@ -90,10 +118,15 @@ in
        (_: package: mapAttrs (const head) (groupBy (getAttr "version") package))
        (groupBy (getAttr "name") lock.package);
 
-     crates = mapAttrsToList (metadataToCrate packages) lock.metadata;
+     gitPackages = filter (package: hasAttr "source" package && hasPrefix "git+https" package.source) lock.package;
+     gitCoords = unique (map (package: parseGitURL package.source) gitPackages);
+
+     crates = mapAttrsToList (fetchCrate packages) lock.metadata;
    in
    runCommand "vendor" {} ''
-     mkdir $out
+     mkdir -p $out/.cargo
+
+     ln -s ${cargoConfig gitCoords} $out/.cargo/config
 
      for f in ${concatStringsSep " " crates}; do
        cp -r $f/* $out
