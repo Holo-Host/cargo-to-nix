@@ -107,9 +107,27 @@ let
       prefix = name + optionalString (!isNewestVersion version (attrNames packages."${name}")) "-${version}";
     in
     mkCrate hash prefix source;
-in
 
-{
+  buildRustPackage = rustPlatform: { cargoDir ? ".", cargoSha256 ? null, cargoVendorDir ? null, ... } @ args:
+    if cargoSha256 == null && cargoVendorDir == null
+    then (rustPlatform.buildRustPackage (args // { cargoVendorDir = "vendor"; })).overrideAttrs (super: {
+      preConfigure = (super.preConfigure or "") + ''
+        cp -Lr ${cargoToNix super.src} ${super.cargoVendorDir}
+        chmod -R +w ${super.cargoVendorDir}
+
+        mkdir -p .cargo
+        substitute vendor/.cargo/config .cargo/config \
+          --replace @vendor@ ${super.cargoVendorDir}
+
+        pushd ${super.cargoDir}
+      '';
+
+      preInstall = (super.preInstall or "") + ''
+        popd
+      '';
+    })
+    else rustPlatform.buildRustPackage args;
+
   cargoToNix = path:
     let
      lock = importTOML "${path}/Cargo.lock";
@@ -132,4 +150,6 @@ in
        cp -r $f/* $out
      done
    '';
-}
+in
+
+{ inherit buildRustPackage cargoToNix; }
