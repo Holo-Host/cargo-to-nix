@@ -3,8 +3,8 @@
 with lib;
 
 let
-  tomlToJSON = path: runCommand "toml.json" {} ''
-    ${remarshal}/bin/toml2json < ${path} > $out
+  tomlToJSON = path: runCommand "toml.json" { nativeBuildInputs = [ remarshal ]; } ''
+    toml2json < ${path} > $out
   '';
 
   importTOML = path: importJSON (tomlToJSON path);
