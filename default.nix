@@ -42,12 +42,7 @@ let
     in
     resolveSubPackage name source;
 
-  cargo-checksum = runCommand "cargo-checksum" { nativeBuildInputs = [ python3 ]; } ''
-    install -D ${./cargo-checksum.py} $out/bin/cargo-checksum
-    patchShebangs $out
-  '';
-
-  mkCrate = hash: prefix: path: runCommand prefix {} ''
+  mkCrate = hash: prefix: path: runCommand prefix { nativeBuildInputs = [ python3 ]; } ''
     mkdir $out
     cp -rs --no-preserve=mode ${path} $out/${prefix}
     cd $out/${prefix}
@@ -55,7 +50,7 @@ let
     rm -f Cargo.toml.orig
     find . -name .\* ! -name . -exec rm -rf -- {} +
 
-    ${cargo-checksum}/bin/cargo-checksum '${hash}'
+    python3 ${./cargo-checksum.py} '${hash}'
   '';
 
   unpack = path: runCommand "source" {} ''
