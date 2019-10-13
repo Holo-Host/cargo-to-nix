@@ -24,15 +24,20 @@ let
 
   resolveSubPackage = name: source:
     let
-      cargo = importTOML "${source}/Cargo.toml";
+      cargoRoot = importTOML "${source}/Cargo.toml";
 
       subPackageName = path:
-        (importTOML "${source}/${path}/Cargo.toml").package.name;
+        let
+          cargo = importTOML "${source}/${path}/Cargo.toml";
+        in
+        if cargo ? "package"
+        then cargo.package.name
+        else null;
 
       subPackageMatch =
-        head (filter (path: subPackageName path == name) cargo.workspace.members);
+        head (filter (path: subPackageName path == name) (cargoRoot.workspace.members ++ [ "." ]));
     in
-    if cargo ? "workspace"
+    if cargoRoot ? "workspace"
       then "${source}/${subPackageMatch}"
       else source;
 
@@ -63,8 +68,8 @@ let
 
   cargoConfigSnippet = gitCoord: ''
     [source."${gitCoord.url}"]
-    "branch" = "${gitCoord.ref}"
     "git" = "${gitCoord.url}"
+    "branch" = "${gitCoord.ref}"
     "replace-with" = "vendored-sources"
   '';
 
